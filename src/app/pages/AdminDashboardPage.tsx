@@ -18,6 +18,7 @@ import {
   Check,
   Save,
   AlertTriangle,
+  Star,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { jsPDF } from 'jspdf';
@@ -355,6 +356,11 @@ export function AdminDashboardPage() {
     const description = String(formData.get('description') || '').trim();
     const quantity = String(formData.get('quantity') || '').trim();
 
+    const isFeatured = formData.get('isFeatured') === 'on';
+    const featuredBackgroundImage = String(
+      formData.get('featuredBackgroundImage') || ''
+    ).trim();
+
     if (!name || !price || !category || !description || !quantity) {
       toast.error('Completa todos los datos del producto');
       return;
@@ -430,6 +436,8 @@ export function AdminDashboardPage() {
       galleryImages: [image, ref1, ref2, ref3],
       referenceImages: [ref1, ref2, ref3],
       videos,
+      isFeatured,
+      featuredBackgroundImage: featuredBackgroundImage || image,
     };
 
     if (editingProduct?.id) {
@@ -1072,6 +1080,56 @@ export function AdminDashboardPage() {
     );
   };
 
+  const renderFeaturedFields = () => {
+    return (
+      <div className="bg-[#FDF7FF] p-4 rounded-2xl border border-[#E6C2F3]/40 space-y-4">
+        <div className="flex items-center gap-2">
+          <Star className="h-5 w-5 fill-[#C161E4] text-[#C161E4]" />
+          <h4 className="font-bold text-[#301438] text-sm">
+            Producto destacado en inicio
+          </h4>
+        </div>
+
+        <label className="flex items-start gap-3 cursor-pointer bg-white border border-[#E6C2F3]/40 rounded-xl p-4 hover:border-[#C161E4] transition-all">
+          <input
+            type="checkbox"
+            name="isFeatured"
+            defaultChecked={Boolean(editingProduct?.isFeatured)}
+            className="mt-1 w-5 h-5 accent-[#C161E4]"
+          />
+
+          <div>
+            <p className="font-bold text-[#301438]">
+              Mostrar este producto en Productos Destacados
+            </p>
+            <p className="text-sm text-[#623B6B] mt-1">
+              Si marcas esta opción, aparecerá en la página inicial. Puedes
+              marcar hasta 3 productos para que se vea ordenado.
+            </p>
+          </div>
+        </label>
+
+        <div>
+          <label className="block text-xs font-semibold text-[#623B6B] mb-1">
+            Imagen de fondo al pasar el mouse
+          </label>
+
+          <input
+            name="featuredBackgroundImage"
+            defaultValue={editingProduct?.featuredBackgroundImage || ''}
+            className="w-full border-2 border-gray-200 p-2.5 rounded-lg focus:border-[#E6C2F3] outline-none text-sm"
+            placeholder="Opcional. Si lo dejas vacío, usará la imagen principal."
+          />
+
+          <p className="text-xs text-[#623B6B]/70 mt-2">
+            Esta imagen aparecerá suavemente de fondo cuando el cliente pase el
+            mouse sobre el producto destacado.
+          </p>
+        </div>
+      </div>
+    );
+  };
+
   const renderActionIcon = () => {
     if (actionModal?.type === 'success') {
       return <Check className="h-8 w-8 text-green-600" />;
@@ -1411,9 +1469,18 @@ export function AdminDashboardPage() {
                     />
                   </div>
 
-                  <span className="bg-[#E6C2F3]/20 text-[#301438] text-xs font-bold px-2 py-1 rounded-md mb-2 w-max">
-                    {product.category}
-                  </span>
+                  <div className="flex flex-wrap gap-2 mb-2">
+                    <span className="bg-[#E6C2F3]/20 text-[#301438] text-xs font-bold px-2 py-1 rounded-md w-max">
+                      {product.category}
+                    </span>
+
+                    {Boolean(product.isFeatured) && (
+                      <span className="bg-[#C161E4] text-white text-xs font-bold px-2 py-1 rounded-md w-max inline-flex items-center gap-1">
+                        <Star className="h-3 w-3 fill-white" />
+                        Destacado
+                      </span>
+                    )}
+                  </div>
 
                   <h3 className="font-bold text-[#301438] mb-1">
                     {product.name}
@@ -1703,6 +1770,8 @@ export function AdminDashboardPage() {
                   </div>
                 </div>
 
+                {renderFeaturedFields()}
+
                 {renderCatalogExtraFields()}
 
                 <div className="bg-gray-50 p-4 rounded-2xl border border-gray-100 space-y-4">
@@ -1897,8 +1966,7 @@ export function AdminDashboardPage() {
 
                       setActionModal({
                         title: 'Categoría eliminada',
-                        message:
-                          'La categoría fue eliminada correctamente.',
+                        message: 'La categoría fue eliminada correctamente.',
                         type: 'danger',
                       });
                     }}

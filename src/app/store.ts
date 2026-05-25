@@ -55,16 +55,14 @@ type ProductRow = {
   image: string;
   description: string;
   ingredients: string[] | null;
-  allergens: {
-    gluten?: boolean;
-    lactose?: boolean;
-    nuts?: boolean;
-  } | null;
+  allergens: Record<string, boolean> | null;
   flavors: string[] | null;
   quantity: string | null;
   gallery_images: string[] | null;
   reference_images: string[] | null;
   videos: any[] | null;
+  is_featured: boolean | null;
+  featured_background_image: string | null;
 };
 
 type OrderItemRow = {
@@ -124,7 +122,7 @@ interface AppState {
   updateReservationStatus: (id: string, status: Reservation['status']) => void;
 }
 
-const fallbackAllergens = {
+const fallbackAllergens: Record<string, boolean> = {
   gluten: false,
   lactose: false,
   nuts: false,
@@ -179,6 +177,8 @@ const mapProductFromDatabase = (product: ProductRow): Product => {
     galleryImages,
     referenceImages: product.reference_images || galleryImages.slice(1),
     videos: normalizeVideos(product.videos),
+    isFeatured: Boolean(product.is_featured),
+    featuredBackgroundImage: product.featured_background_image || product.image,
   };
 
   return mappedProduct as Product;
@@ -226,6 +226,9 @@ const mapProductToDatabase = (product: any) => {
     gallery_images: galleryImages,
     reference_images: referenceImages,
     videos,
+    is_featured: Boolean(product.isFeatured),
+    featured_background_image:
+      product.featuredBackgroundImage || product.image || null,
   };
 };
 
