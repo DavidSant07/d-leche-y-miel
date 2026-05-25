@@ -8,6 +8,11 @@ import { supabase } from '../lib/supabase';
 
 const LOGO_URL = 'https://file.garden/aJyh9202yxmfpWlA/dLCHEYMEL/logo.png';
 
+const getFirstName = (name?: string) => {
+  if (!name) return '';
+  return name.trim().split(' ')[0];
+};
+
 export function RootLayout() {
   const { cart } = useCart();
   const location = useLocation();
@@ -133,7 +138,7 @@ export function RootLayout() {
                     >
                       <UserAvatar />
                       <span className="max-w-[140px] truncate">
-                        {user.name}
+                        {getFirstName(user.name) || getFirstName(user.email)}
                       </span>
                     </Link>
                   )}
