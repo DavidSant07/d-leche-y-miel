@@ -27,6 +27,10 @@ type FormData = {
   email: string;
 };
 
+const createOrderId = () => {
+  return crypto.randomUUID();
+};
+
 export function OrderFormPage() {
   const navigate = useNavigate();
   const { cart, getTotal } = useCart();
@@ -54,10 +58,6 @@ export function OrderFormPage() {
     return <Navigate to="/productos" replace />;
   }
 
-  if (!user) {
-    return <Navigate to="/login" replace />;
-  }
-
   const handleOrganizationSelect = (organization: string) => {
     setFormData((current) => ({
       ...current,
@@ -74,6 +74,18 @@ export function OrderFormPage() {
     }));
   };
 
+  const isFormValid = () => {
+    return Boolean(
+      formData.organization &&
+        formData.date &&
+        formData.time &&
+        formData.fullName.trim() &&
+        formData.phone.trim() &&
+        formData.address.trim() &&
+        formData.reference.trim()
+    );
+  };
+
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
 
@@ -84,6 +96,7 @@ export function OrderFormPage() {
 
     setIsSubmitting(true);
 
+    const orderId = createOrderId();
     const reservationNumber = `LM-${Date.now().toString().slice(-8)}`;
     const total = getTotal();
 
@@ -91,32 +104,30 @@ export function OrderFormPage() {
     const cleanPhone = formData.phone.trim();
     const cleanAddress = formData.address.trim();
     const cleanReference = formData.reference.trim();
+    const cleanEmail = formData.email.trim();
 
-    const { data: orderData, error: orderError } = await supabase
-      .from('orders')
-      .insert({
-        user_id: user.id,
-        reservation_number: reservationNumber,
-        organization: formData.organization,
-        full_name: cleanFullName,
-        phone: cleanPhone,
-        address: cleanAddress,
-        reference: cleanReference || null,
-        delivery_date: formData.date,
-        total,
-        status: 'pendiente',
-      })
-      .select('id')
-      .single();
+    const { error: orderError } = await supabase.from('orders').insert({
+      id: orderId,
+      user_id: user?.id ?? null,
+      reservation_number: reservationNumber,
+      organization: formData.organization,
+      full_name: cleanFullName,
+      phone: cleanPhone,
+      address: cleanAddress,
+      reference: cleanReference || null,
+      delivery_date: formData.date,
+      total,
+      status: 'pendiente',
+    });
 
-    if (orderError || !orderData) {
+    if (orderError) {
       setIsSubmitting(false);
-      toast.error(orderError?.message || 'No se pudo registrar el pedido');
+      toast.error(orderError.message || 'No se pudo registrar el pedido');
       return;
     }
 
     const orderItems = cart.map((item) => ({
-      order_id: orderData.id,
+      order_id: orderId,
       product_id: item.id,
       product_name: item.name,
       quantity: item.cartQuantity,
@@ -143,7 +154,7 @@ export function OrderFormPage() {
       status: 'pending',
       items: cart,
       total,
-      userId: user.id,
+      userId: user?.id,
       guestName: cleanFullName,
       guestPhone: cleanPhone,
     });
@@ -160,25 +171,14 @@ export function OrderFormPage() {
         phone: cleanPhone,
         address: cleanAddress,
         reference: cleanReference,
-        email: formData.email,
+        email: cleanEmail,
         cart,
         total,
+        isGuest: !user,
       },
     });
 
     setIsSubmitting(false);
-  };
-
-  const isFormValid = () => {
-    return Boolean(
-      formData.organization &&
-        formData.date &&
-        formData.time &&
-        formData.fullName.trim() &&
-        formData.phone.trim() &&
-        formData.address.trim() &&
-        formData.reference.trim()
-    );
   };
 
   return (
@@ -194,7 +194,7 @@ export function OrderFormPage() {
           </h1>
 
           <p className="text-[#6D524A]">
-            Por favor, proporciona la información de entrega
+            Puedes hacer tu pedido con cuenta o como invitado
           </p>
         </motion.div>
 
@@ -239,7 +239,7 @@ export function OrderFormPage() {
             </h2>
 
             <div className="space-y-4">
-              {['XAM', 'Probannec'].map((organization) => (
+              {['XAM', 'Probannec', 'Cliente particular'].map((organization) => (
                 <motion.button
                   key={organization}
                   whileHover={{ scale: 1.02 }}
@@ -350,8 +350,9 @@ export function OrderFormPage() {
             <div className="mb-6 flex items-start gap-3 bg-[#E4835D]/10 border border-[#E4835D]/20 rounded-2xl p-4">
               <AlertCircle className="h-5 w-5 text-[#E4835D] mt-0.5" />
               <p className="text-sm text-[#6D524A]">
-                Tu pedido quedará registrado en nuestra base de datos y podrás
-                recibir confirmación con tu número de reserva.
+                {user
+                  ? 'Tu pedido quedará registrado con tu cuenta.'
+                  : 'Estás haciendo tu pedido como invitado. No necesitas iniciar sesión.'}
               </p>
             </div>
 
@@ -447,15 +448,26 @@ export function OrderFormPage() {
               <div>
                 <label className="flex items-center gap-2 text-[#6D524A] mb-2">
                   <Mail className="h-5 w-5 text-[#E4835D]" />
-                  Correo Electrónico
+                  Correo Electrónico {user ? '' : '(opcional)'}
                 </label>
 
                 <input
                   type="email"
                   value={formData.email}
-                  readOnly
-                  className="w-full px-4 py-3 bg-gray-50 border-2 border-gray-100 rounded-xl text-gray-500 cursor-not-allowed"
+                  readOnly={Boolean(user)}
+                  onChange={(e) =>
+                    setFormData((current) => ({
+                      ...current,
+                      email: e.target.value,
+                    }))
+                  }
+                  className={`w-full px-4 py-3 border-2 rounded-xl focus:border-[#E4835D] focus:outline-none transition-colors ${
+                    user
+                      ? 'bg-gray-50 border-gray-100 text-gray-500 cursor-not-allowed'
+                      : 'bg-white border-gray-200 text-[#3E2723]'
+                  }`}
                   placeholder="correo@ejemplo.com"
+                  disabled={isSubmitting}
                 />
               </div>
 
@@ -513,4 +525,4 @@ export function OrderFormPage() {
       </div>
     </div>
   );
-}
+} 
