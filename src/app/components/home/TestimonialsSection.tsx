@@ -9,9 +9,12 @@ import {
   User,
   Image as ImageIcon,
   MessageSquare,
+  LogIn,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { useNavigate } from 'react-router';
 import { supabase } from '../../lib/supabase';
+import { useAppStore } from '../../store';
 
 type Review = {
   id: string;
@@ -60,13 +63,15 @@ const fallbackTestimonials: Review[] = [
 ];
 
 export function TestimonialsSection() {
+  const navigate = useNavigate();
+  const user = useAppStore((state) => state.user);
+
   const [testimonials, setTestimonials] =
     useState<Review[]>(fallbackTestimonials);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isLoadingReviews, setIsLoadingReviews] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const [customerName, setCustomerName] = useState('');
   const [photoUrl, setPhotoUrl] = useState('');
   const [comment, setComment] = useState('');
   const [rating, setRating] = useState(5);
@@ -129,12 +134,18 @@ export function TestimonialsSection() {
   const handleSubmitReview = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
 
-    const cleanName = customerName.trim();
+    if (!user) {
+      toast.error('Debes iniciar sesión para dejar un comentario');
+      navigate('/login');
+      return;
+    }
+
+    const cleanName = user.name?.trim() || user.email?.split('@')[0] || 'Cliente';
     const cleanComment = comment.trim();
     const cleanPhotoUrl = photoUrl.trim();
 
-    if (!cleanName || !cleanComment) {
-      toast.error('Completa tu nombre y comentario');
+    if (!cleanComment) {
+      toast.error('Escribe tu comentario');
       return;
     }
 
@@ -160,7 +171,6 @@ export function TestimonialsSection() {
       return;
     }
 
-    setCustomerName('');
     setPhotoUrl('');
     setComment('');
     setRating(5);
@@ -309,124 +319,156 @@ export function TestimonialsSection() {
           )}
         </div>
 
-        <motion.div
-          initial={{ opacity: 0, y: 30 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
-          transition={{ duration: 0.8 }}
-          className="max-w-4xl mx-auto mt-16 bg-white rounded-3xl shadow-xl border border-[#E6C2F3]/30 p-6 md:p-8"
-        >
-          <div className="text-center mb-8">
-            <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-[#E6C2F3]/20 mb-4">
-              <MessageSquare className="h-8 w-8 text-[#C161E4]" />
+        {user ? (
+          <motion.div
+            initial={{ opacity: 0, y: 30 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.8 }}
+            className="max-w-4xl mx-auto mt-16 bg-white rounded-3xl shadow-xl border border-[#E6C2F3]/30 p-6 md:p-8"
+          >
+            <div className="text-center mb-8">
+              <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-[#E6C2F3]/20 mb-4">
+                <MessageSquare className="h-8 w-8 text-[#C161E4]" />
+              </div>
+
+              <h3 className="text-3xl font-bold text-[#301438] mb-2">
+                Deja tu comentario
+              </h3>
+
+              <p className="text-[#623B6B]">
+                Tu comentario será revisado antes de aparecer públicamente.
+              </p>
             </div>
 
-            <h3 className="text-3xl font-bold text-[#301438] mb-2">
-              Deja tu comentario
-            </h3>
+            <form onSubmit={handleSubmitReview} className="space-y-5">
+              <div>
+                <label className="block text-sm font-bold text-[#301438] mb-2">
+                  Tu nombre
+                </label>
 
-            <p className="text-[#623B6B]">
-              Tu comentario será revisado antes de aparecer públicamente.
-            </p>
-          </div>
+                <div className="relative">
+                  <User className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-[#C161E4]" />
 
-          <form onSubmit={handleSubmitReview} className="space-y-5">
-            <div>
-              <label className="block text-sm font-bold text-[#301438] mb-2">
-                Tu nombre
-              </label>
+                  <input
+                    type="text"
+                    value={user.name || user.email}
+                    readOnly
+                    className="w-full pl-12 pr-4 py-4 border-2 border-gray-100 bg-gray-50 rounded-2xl text-[#623B6B] cursor-not-allowed"
+                  />
+                </div>
 
-              <div className="relative">
-                <User className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-[#C161E4]" />
+                <p className="text-xs text-[#623B6B]/70 mt-2">
+                  Este nombre viene de tu cuenta registrada.
+                </p>
+              </div>
 
-                <input
-                  type="text"
-                  value={customerName}
-                  onChange={(e) => setCustomerName(e.target.value)}
-                  className="w-full pl-12 pr-4 py-4 border-2 border-gray-200 rounded-2xl focus:border-[#E6C2F3] focus:outline-none transition-colors"
-                  placeholder="Ej. María López"
+              <div>
+                <label className="block text-sm font-bold text-[#301438] mb-2">
+                  Foto de perfil URL opcional
+                </label>
+
+                <div className="relative">
+                  <ImageIcon className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-[#C161E4]" />
+
+                  <input
+                    type="url"
+                    value={photoUrl}
+                    onChange={(e) => setPhotoUrl(e.target.value)}
+                    className="w-full pl-12 pr-4 py-4 border-2 border-gray-200 rounded-2xl focus:border-[#E6C2F3] focus:outline-none transition-colors"
+                    placeholder="https://..."
+                    disabled={isSubmitting}
+                  />
+                </div>
+
+                <p className="text-xs text-[#623B6B]/70 mt-2">
+                  Por ahora puedes pegar una URL de imagen. Luego podemos agregar
+                  subida directa desde celular o computadora.
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-bold text-[#301438] mb-2">
+                  Calificación
+                </label>
+
+                <div className="flex gap-2">
+                  {[1, 2, 3, 4, 5].map((starValue) => (
+                    <button
+                      key={starValue}
+                      type="button"
+                      onClick={() => setRating(starValue)}
+                      className="p-1"
+                      disabled={isSubmitting}
+                    >
+                      <Star
+                        className={`h-9 w-9 transition-all ${
+                          starValue <= rating
+                            ? 'fill-[#C161E4] text-[#C161E4]'
+                            : 'text-[#E6C2F3]'
+                        }`}
+                      />
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-bold text-[#301438] mb-2">
+                  Comentario
+                </label>
+
+                <textarea
+                  value={comment}
+                  onChange={(e) => setComment(e.target.value)}
+                  rows={4}
+                  className="w-full px-4 py-4 border-2 border-gray-200 rounded-2xl focus:border-[#E6C2F3] focus:outline-none transition-colors resize-none"
+                  placeholder="Cuéntanos cómo fue tu experiencia..."
                   disabled={isSubmitting}
                   required
                 />
               </div>
-            </div>
 
-            <div>
-              <label className="block text-sm font-bold text-[#301438] mb-2">
-                Foto de perfil URL opcional
-              </label>
-
-              <div className="relative">
-                <ImageIcon className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-[#C161E4]" />
-
-                <input
-                  type="url"
-                  value={photoUrl}
-                  onChange={(e) => setPhotoUrl(e.target.value)}
-                  className="w-full pl-12 pr-4 py-4 border-2 border-gray-200 rounded-2xl focus:border-[#E6C2F3] focus:outline-none transition-colors"
-                  placeholder="https://..."
-                  disabled={isSubmitting}
-                />
-              </div>
-
-              <p className="text-xs text-[#623B6B]/70 mt-2">
-                Por ahora puedes pegar una URL de imagen. Luego podemos agregar
-                subida directa desde celular o computadora.
-              </p>
-            </div>
-
-            <div>
-              <label className="block text-sm font-bold text-[#301438] mb-2">
-                Calificación
-              </label>
-
-              <div className="flex gap-2">
-                {[1, 2, 3, 4, 5].map((starValue) => (
-                  <button
-                    key={starValue}
-                    type="button"
-                    onClick={() => setRating(starValue)}
-                    className="p-1"
-                    disabled={isSubmitting}
-                  >
-                    <Star
-                      className={`h-9 w-9 transition-all ${
-                        starValue <= rating
-                          ? 'fill-[#C161E4] text-[#C161E4]'
-                          : 'text-[#E6C2F3]'
-                      }`}
-                    />
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-sm font-bold text-[#301438] mb-2">
-                Comentario
-              </label>
-
-              <textarea
-                value={comment}
-                onChange={(e) => setComment(e.target.value)}
-                rows={4}
-                className="w-full px-4 py-4 border-2 border-gray-200 rounded-2xl focus:border-[#E6C2F3] focus:outline-none transition-colors resize-none"
-                placeholder="Cuéntanos cómo fue tu experiencia..."
+              <button
+                type="submit"
                 disabled={isSubmitting}
-                required
-              />
+                className="w-full bg-[#C161E4] text-white py-4 rounded-2xl font-bold text-lg hover:bg-[#301438] transition-all shadow-lg flex items-center justify-center gap-2 disabled:opacity-60"
+              >
+                <Send className="h-5 w-5" />
+                {isSubmitting ? 'Enviando...' : 'Enviar comentario'}
+              </button>
+            </form>
+          </motion.div>
+        ) : (
+          <motion.div
+            initial={{ opacity: 0, y: 30 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.8 }}
+            className="max-w-4xl mx-auto mt-16 bg-white rounded-3xl shadow-xl border border-[#E6C2F3]/30 p-8 text-center"
+          >
+            <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-[#E6C2F3]/20 mb-4">
+              <LogIn className="h-8 w-8 text-[#C161E4]" />
             </div>
+
+            <h3 className="text-3xl font-bold text-[#301438] mb-3">
+              Inicia sesión para comentar
+            </h3>
+
+            <p className="text-[#623B6B] mb-6">
+              Solo los clientes registrados pueden dejar comentarios y
+              calificaciones.
+            </p>
 
             <button
-              type="submit"
-              disabled={isSubmitting}
-              className="w-full bg-[#C161E4] text-white py-4 rounded-2xl font-bold text-lg hover:bg-[#301438] transition-all shadow-lg flex items-center justify-center gap-2 disabled:opacity-60"
+              type="button"
+              onClick={() => navigate('/login')}
+              className="bg-[#C161E4] text-white px-8 py-4 rounded-full font-bold hover:bg-[#301438] transition-all shadow-lg"
             >
-              <Send className="h-5 w-5" />
-              {isSubmitting ? 'Enviando...' : 'Enviar comentario'}
+              Iniciar sesión
             </button>
-          </form>
-        </motion.div>
+          </motion.div>
+        )}
       </div>
     </section>
   );
