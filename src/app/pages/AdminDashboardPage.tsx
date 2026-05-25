@@ -593,31 +593,39 @@ export function AdminDashboardPage() {
     const pageHeight = doc.internal.pageSize.getHeight();
 
     const colors = {
-      purple: [198, 154, 215] as const,
-      purpleDark: [86, 58, 96] as const,
-      orange: [228, 131, 93] as const,
-      brown: [62, 39, 35] as const,
-      text: [80, 66, 61] as const,
-      muted: [125, 110, 104] as const,
+      primary: [168, 133, 185] as const,
+      primaryDark: [86, 58, 96] as const,
+      deepPurple: [48, 20, 56] as const,
+      accent: [228, 131, 93] as const,
+      text: [62, 39, 35] as const,
+      muted: [120, 96, 105] as const,
       softBg: [253, 251, 247] as const,
-      line: [232, 218, 210] as const,
+      softPurple: [247, 238, 250] as const,
+      line: [232, 218, 237] as const,
       white: [255, 255, 255] as const,
     };
 
-    const margin = 18;
-    let y = 18;
+    const margin = 14;
+    const contentWidth = pageWidth - margin * 2;
+    const footerY = pageHeight - 14;
+    const safeBottom = pageHeight - 26;
+
+    let y = 14;
 
     const reservationNumber = getReservationNumber(res);
 
-    const currentDate = new Date();
+    const emittedAt =
+      (res as any).createdAt || (res as any).created_at
+        ? new Date((res as any).createdAt || (res as any).created_at)
+        : new Date();
 
-    const formattedDate = currentDate.toLocaleDateString('es-PE', {
+    const formattedDate = emittedAt.toLocaleDateString('es-PE', {
       year: 'numeric',
       month: 'long',
       day: 'numeric',
     });
 
-    const formattedTime = currentDate.toLocaleTimeString('es-PE', {
+    const formattedTime = emittedAt.toLocaleTimeString('es-PE', {
       hour: '2-digit',
       minute: '2-digit',
     });
@@ -627,13 +635,21 @@ export function AdminDashboardPage() {
 
     const customerName = res.guestName || 'Usuario registrado';
     const customerPhone = res.guestPhone || '-';
-    const organization = res.organization || '-';
+    const organization = res.organization || 'Cliente particular';
     const address = res.address || '-';
     const reference = res.reference || '-';
     const items = Array.isArray(res.items) ? res.items : [];
-    const total = Number(res.total || 0);
 
-    const money = (value: number) => `S/. ${value.toFixed(2)}`;
+    const calculatedTotal = items.reduce((sum: number, item: any) => {
+      const quantity = Number(item.cartQuantity || item.quantity || 1);
+      const price = Number(item.price || 0);
+
+      return sum + price * quantity;
+    }, 0);
+
+    const total = Number(res.total || calculatedTotal || 0);
+
+    const money = (value: number) => `S/. ${Number(value || 0).toFixed(2)}`;
 
     const writeText = (
       text: string,
@@ -659,7 +675,7 @@ export function AdminDashboardPage() {
       x: number,
       textY: number,
       maxWidth: number,
-      lineHeight = 5,
+      lineHeight = 4.5,
       options?: {
         size?: number;
         color?: readonly [number, number, number];
@@ -667,7 +683,7 @@ export function AdminDashboardPage() {
       }
     ) => {
       doc.setFont('helvetica', options?.font || 'normal');
-      doc.setFontSize(options?.size || 10);
+      doc.setFontSize(options?.size || 9);
       doc.setTextColor(...(options?.color || colors.text));
 
       const lines = doc.splitTextToSize(
@@ -680,6 +696,26 @@ export function AdminDashboardPage() {
       return lines.length * lineHeight;
     };
 
+    const drawMiniHeader = () => {
+      doc.setFillColor(...colors.primary);
+      doc.rect(0, 0, pageWidth, 18, 'F');
+
+      writeText('LECHE Y MIEL', margin, 11.5, {
+        size: 10,
+        color: colors.white,
+        font: 'bold',
+      });
+
+      writeText('Recibo de reserva', pageWidth - margin, 11.5, {
+        size: 9,
+        color: colors.white,
+        font: 'bold',
+        align: 'right',
+      });
+
+      y = 28;
+    };
+
     const addFooter = () => {
       const pageCount = doc.getNumberOfPages();
 
@@ -687,316 +723,343 @@ export function AdminDashboardPage() {
         doc.setPage(page);
 
         doc.setDrawColor(...colors.line);
-        doc.line(margin, pageHeight - 18, pageWidth - margin, pageHeight - 18);
+        doc.setLineWidth(0.25);
+        doc.line(margin, footerY - 5, pageWidth - margin, footerY - 5);
 
-        writeText('Leche y Miel', margin, pageHeight - 10, {
-          size: 9,
+        writeText('Leche y Miel', margin, footerY, {
+          size: 8,
           color: colors.muted,
           font: 'bold',
         });
 
-        writeText(
-          'Postres artesanales hechos con amor',
-          pageWidth / 2,
-          pageHeight - 10,
-          {
-            size: 9,
-            color: colors.muted,
-            align: 'center',
-          }
-        );
+        writeText('Postres artesanales hechos con amor', pageWidth / 2, footerY, {
+          size: 8,
+          color: colors.muted,
+          align: 'center',
+        });
 
-        writeText(
-          `Página ${page} de ${pageCount}`,
-          pageWidth - margin,
-          pageHeight - 10,
-          {
-            size: 9,
-            color: colors.muted,
-            align: 'right',
-          }
-        );
+        writeText(`Página ${page} de ${pageCount}`, pageWidth - margin, footerY, {
+          size: 8,
+          color: colors.muted,
+          align: 'right',
+        });
       }
     };
 
-    const addNewPageIfNeeded = (neededSpace: number) => {
-      if (y + neededSpace > pageHeight - 28) {
+    const drawTableHeader = () => {
+      doc.setFillColor(...colors.primary);
+      doc.roundedRect(margin, y, contentWidth, 9, 3, 3, 'F');
+
+      writeText('Producto', margin + 5, y + 6.2, {
+        size: 8.5,
+        color: colors.white,
+        font: 'bold',
+      });
+
+      writeText('Cant.', 122, y + 6.2, {
+        size: 8.5,
+        color: colors.white,
+        font: 'bold',
+        align: 'center',
+      });
+
+      writeText('Precio', 152, y + 6.2, {
+        size: 8.5,
+        color: colors.white,
+        font: 'bold',
+        align: 'right',
+      });
+
+      writeText('Subtotal', pageWidth - margin - 5, y + 6.2, {
+        size: 8.5,
+        color: colors.white,
+        font: 'bold',
+        align: 'right',
+      });
+
+      y += 11;
+    };
+
+    const ensureSpace = (neededSpace: number, repeatTableHeader = false) => {
+      if (y + neededSpace > safeBottom) {
         doc.addPage();
-        y = 22;
+        drawMiniHeader();
+
+        if (repeatTableHeader) {
+          drawTableHeader();
+        }
       }
     };
 
     const drawSectionTitle = (title: string) => {
-      addNewPageIfNeeded(14);
+      ensureSpace(12);
 
-      doc.setFillColor(...colors.purple);
-      doc.roundedRect(margin, y, 4, 8, 2, 2, 'F');
+      doc.setFillColor(...colors.primary);
+      doc.roundedRect(margin, y - 1, 4, 8, 2, 2, 'F');
 
-      writeText(title, margin + 8, y + 6, {
-        size: 13,
-        color: colors.brown,
+      writeText(title, margin + 8, y + 5, {
+        size: 12,
+        color: colors.deepPurple,
         font: 'bold',
       });
 
-      y += 14;
+      y += 12;
     };
 
-    const drawInfoBox = (
+    const drawSmallCard = (
       x: number,
-      boxY: number,
+      cardY: number,
       width: number,
       height: number,
       title: string,
       lines: string[]
     ) => {
-      doc.setFillColor(...colors.softBg);
+      doc.setFillColor(...colors.white);
       doc.setDrawColor(...colors.line);
-      doc.roundedRect(x, boxY, width, height, 4, 4, 'FD');
+      doc.setLineWidth(0.35);
+      doc.roundedRect(x, cardY, width, height, 4, 4, 'FD');
 
-      writeText(title, x + 5, boxY + 8, {
-        size: 10,
-        color: colors.purpleDark,
+      writeText(title, x + 4, cardY + 7, {
+        size: 9,
+        color: colors.primaryDark,
         font: 'bold',
       });
 
-      let lineY = boxY + 16;
+      let lineY = cardY + 15;
 
       lines.forEach((line) => {
-        const used = writeWrappedText(line, x + 5, lineY, width - 10, 4.5, {
-          size: 9,
+        const usedHeight = writeWrappedText(line, x + 4, lineY, width - 8, 4.2, {
+          size: 8.3,
           color: colors.text,
         });
 
-        lineY += Math.max(used, 4.5);
+        lineY += Math.max(usedHeight, 4.2);
       });
-    };
-
-    const drawTableHeader = () => {
-      doc.setFillColor(...colors.purple);
-      doc.roundedRect(margin, y, pageWidth - margin * 2, 10, 3, 3, 'F');
-
-      writeText('Producto', margin + 5, y + 7, {
-        size: 9,
-        color: colors.white,
-        font: 'bold',
-      });
-
-      writeText('Cant.', 122, y + 7, {
-        size: 9,
-        color: colors.white,
-        font: 'bold',
-        align: 'center',
-      });
-
-      writeText('Precio', 152, y + 7, {
-        size: 9,
-        color: colors.white,
-        font: 'bold',
-        align: 'right',
-      });
-
-      writeText('Subtotal', pageWidth - margin - 5, y + 7, {
-        size: 9,
-        color: colors.white,
-        font: 'bold',
-        align: 'right',
-      });
-
-      y += 13;
-    };
-
-    const addNewPageForTableIfNeeded = (neededSpace: number) => {
-      if (y + neededSpace > pageHeight - 34) {
-        doc.addPage();
-        y = 22;
-        drawTableHeader();
-      }
     };
 
     const logoDataUrl = await getImageDataUrl(LOGO_URL);
 
-    doc.setFillColor(...colors.purple);
-    doc.rect(0, 0, pageWidth, 48, 'F');
+    doc.setFillColor(...colors.primary);
+    doc.rect(0, 0, pageWidth, 42, 'F');
+
+    doc.setFillColor(...colors.deepPurple);
+    doc.circle(3, 42, 34, 'F');
+    doc.circle(pageWidth - 18, 0, 40, 'F');
 
     if (logoDataUrl) {
-      const imageType = logoDataUrl.includes('image/png') ? 'PNG' : 'JPEG';
-      doc.addImage(logoDataUrl, imageType, 17, 12, 26, 26);
+      try {
+        const imageType = logoDataUrl.includes('image/png') ? 'PNG' : 'JPEG';
+        doc.addImage(logoDataUrl, imageType, margin, 8, 27, 27);
+      } catch {
+        doc.setFillColor(...colors.white);
+        doc.circle(margin + 13.5, 21.5, 12, 'F');
+
+        writeText('LM', margin + 13.5, 25, {
+          size: 11,
+          color: colors.primary,
+          font: 'bold',
+          align: 'center',
+        });
+      }
     } else {
       doc.setFillColor(...colors.white);
-      doc.circle(30, 24, 12, 'F');
+      doc.circle(margin + 13.5, 21.5, 12, 'F');
 
-      writeText('LM', 30, 28, {
-        size: 12,
-        color: colors.purple,
+      writeText('LM', margin + 13.5, 25, {
+        size: 11,
+        color: colors.primary,
         font: 'bold',
         align: 'center',
       });
     }
 
-    writeText('LECHE Y MIEL', 48, 22, {
-      size: 20,
+    writeText('LECHE Y MIEL', 46, 19, {
+      size: 18,
       color: colors.white,
       font: 'bold',
     });
 
-    writeText('Recibo de reserva', 48, 31, {
-      size: 10,
+    writeText('Recibo de reserva', 46, 28, {
+      size: 9.5,
       color: colors.white,
     });
 
-    writeText(`Recibo No. ${reservationNumber}`, pageWidth - margin, 21, {
-      size: 10,
-      color: colors.white,
-      font: 'bold',
-      align: 'right',
-    });
-
-    writeText(`${formattedDate} - ${formattedTime}`, pageWidth - margin, 30, {
-      size: 9,
-      color: colors.white,
-      align: 'right',
-    });
-
-    y = 62;
+    y = 52;
 
     doc.setFillColor(...colors.softBg);
     doc.setDrawColor(...colors.line);
-    doc.roundedRect(margin, y, pageWidth - margin * 2, 24, 5, 5, 'FD');
+    doc.roundedRect(margin, y, contentWidth, 22, 5, 5, 'FD');
 
-    writeText('Número de reserva', margin + 8, y + 9, {
-      size: 9,
+    writeText('NÚMERO DE RESERVA', margin + 6, y + 8, {
+      size: 7.5,
       color: colors.muted,
       font: 'bold',
     });
 
-    writeText(String(reservationNumber), margin + 8, y + 19, {
-      size: 18,
-      color: colors.orange,
+    writeText(reservationNumber, margin + 6, y + 17, {
+      size: 14,
+      color: colors.accent,
       font: 'bold',
     });
 
-    writeText(
-      'Guarda este recibo para cualquier consulta sobre tu pedido.',
-      pageWidth - margin - 8,
-      y + 16,
-      {
-        size: 9,
-        color: colors.muted,
-        align: 'right',
-      }
-    );
+    writeText('FECHA DE EMISIÓN', pageWidth / 2 - 10, y + 8, {
+      size: 7.5,
+      color: colors.muted,
+      font: 'bold',
+    });
 
-    y += 36;
+    writeText(`${formattedDate} - ${formattedTime}`, pageWidth / 2 - 10, y + 17, {
+      size: 8.8,
+      color: colors.text,
+    });
 
-    drawSectionTitle('Datos del cliente');
+    writeText('TOTAL', pageWidth - margin - 6, y + 8, {
+      size: 7.5,
+      color: colors.muted,
+      font: 'bold',
+      align: 'right',
+    });
 
-    const boxGap = 8;
-    const boxWidth = (pageWidth - margin * 2 - boxGap) / 2;
+    writeText(money(total), pageWidth - margin - 6, y + 18, {
+      size: 15,
+      color: colors.accent,
+      font: 'bold',
+      align: 'right',
+    });
 
-    drawInfoBox(margin, y, boxWidth, 42, 'Cliente', [
+    y += 34;
+
+    drawSectionTitle('Datos de la reserva');
+
+    const cardGap = 5;
+    const cardWidth = (contentWidth - cardGap * 2) / 3;
+    const cardHeight = 43;
+
+    drawSmallCard(margin, y, cardWidth, cardHeight, 'Cliente', [
       `Nombre: ${customerName}`,
       `Teléfono: ${customerPhone}`,
       `Organización: ${organization}`,
     ]);
 
-    drawInfoBox(margin + boxWidth + boxGap, y, boxWidth, 42, 'Entrega', [
-      `Fecha: ${deliveryDate}`,
-      `Horario: ${deliveryTime}`,
-      `Referencia: ${reference}`,
-    ]);
+    drawSmallCard(
+      margin + cardWidth + cardGap,
+      y,
+      cardWidth,
+      cardHeight,
+      'Entrega',
+      [`Fecha: ${deliveryDate}`, `Horario: ${deliveryTime}`, `Referencia: ${reference}`]
+    );
 
-    y += 52;
+    drawSmallCard(
+      margin + cardWidth * 2 + cardGap * 2,
+      y,
+      cardWidth,
+      cardHeight,
+      'Dirección',
+      [address]
+    );
 
-    drawSectionTitle('Dirección de entrega');
-
-    doc.setFillColor(...colors.softBg);
-    doc.setDrawColor(...colors.line);
-    doc.roundedRect(margin, y, pageWidth - margin * 2, 24, 4, 4, 'FD');
-
-    writeWrappedText(address, margin + 6, y + 9, pageWidth - margin * 2 - 12, 5, {
-      size: 10,
-      color: colors.text,
-    });
-
-    y += 36;
+    y += cardHeight + 14;
 
     drawSectionTitle('Resumen del pedido');
 
     drawTableHeader();
 
-    items.forEach((item: any) => {
-      const quantity = Number(item.cartQuantity || item.quantity || 1);
-      const price = Number(item.price || 0);
-      const subtotal = price * quantity;
-      const productName = String(item.name || item.product_name || 'Producto');
+    if (items.length === 0) {
+      doc.setFillColor(...colors.softPurple);
+      doc.roundedRect(margin, y, contentWidth, 14, 3, 3, 'F');
 
-      const nameLines = doc.splitTextToSize(productName, 82) as string[];
-      const rowHeight = Math.max(13, nameLines.length * 5 + 6);
-
-      addNewPageForTableIfNeeded(rowHeight);
-
-      doc.setDrawColor(...colors.line);
-      doc.line(margin, y + rowHeight - 2, pageWidth - margin, y + rowHeight - 2);
-
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(10);
-      doc.setTextColor(...colors.text);
-      doc.text(nameLines, margin + 5, y + 5);
-
-      writeText(String(quantity), 122, y + 6, {
-        size: 10,
-        color: colors.text,
-        align: 'center',
+      writeText('No hay productos registrados en esta reserva.', margin + 5, y + 9, {
+        size: 9,
+        color: colors.muted,
+        font: 'italic',
       });
 
-      writeText(money(price), 152, y + 6, {
-        size: 10,
-        color: colors.text,
-        align: 'right',
+      y += 18;
+    } else {
+      items.forEach((item: any, index: number) => {
+        const quantity = Number(item.cartQuantity || item.quantity || 1);
+        const price = Number(item.price || 0);
+        const subtotal = price * quantity;
+        const productName = String(item.name || item.product_name || 'Producto');
+
+        const nameLines = doc.splitTextToSize(productName, 84) as string[];
+        const rowHeight = Math.max(11, nameLines.length * 4.7 + 6);
+
+        ensureSpace(rowHeight + 2, true);
+
+        if (index % 2 === 0) {
+          doc.setFillColor(...colors.softBg);
+          doc.roundedRect(margin, y - 1, contentWidth, rowHeight, 2, 2, 'F');
+        }
+
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(9);
+        doc.setTextColor(...colors.text);
+        doc.text(nameLines, margin + 5, y + 5);
+
+        writeText(String(quantity), 122, y + 5.5, {
+          size: 9,
+          color: colors.text,
+          align: 'center',
+        });
+
+        writeText(money(price), 152, y + 5.5, {
+          size: 9,
+          color: colors.text,
+          align: 'right',
+        });
+
+        writeText(money(subtotal), pageWidth - margin - 5, y + 5.5, {
+          size: 9,
+          color: colors.deepPurple,
+          font: 'bold',
+          align: 'right',
+        });
+
+        doc.setDrawColor(...colors.line);
+        doc.setLineWidth(0.2);
+        doc.line(margin, y + rowHeight - 1, pageWidth - margin, y + rowHeight - 1);
+
+        y += rowHeight;
       });
+    }
 
-      writeText(money(subtotal), pageWidth - margin - 5, y + 6, {
-        size: 10,
-        color: colors.brown,
-        font: 'bold',
-        align: 'right',
-      });
+    ensureSpace(34);
 
-      y += rowHeight;
-    });
+    y += 5;
 
-    addNewPageIfNeeded(38);
+    const totalBoxWidth = 72;
+    const totalBoxX = pageWidth - margin - totalBoxWidth;
 
-    y += 8;
+    doc.setFillColor(255, 247, 242);
+    doc.setDrawColor(...colors.accent);
+    doc.setLineWidth(0.35);
+    doc.roundedRect(totalBoxX, y, totalBoxWidth, 24, 5, 5, 'FD');
 
-    doc.setFillColor(255, 246, 239);
-    doc.setDrawColor(...colors.orange);
-    doc.roundedRect(112, y, pageWidth - margin - 112, 24, 5, 5, 'FD');
-
-    writeText('TOTAL', 120, y + 10, {
-      size: 11,
-      color: colors.brown,
+    writeText('TOTAL A PAGAR', totalBoxX + 6, y + 9, {
+      size: 8,
+      color: colors.text,
       font: 'bold',
     });
 
-    writeText(money(total), pageWidth - margin - 8, y + 17, {
-      size: 18,
-      color: colors.orange,
+    writeText(money(total), totalBoxX + totalBoxWidth - 6, y + 18, {
+      size: 17,
+      color: colors.accent,
       font: 'bold',
       align: 'right',
     });
 
-    y += 42;
+    y += 34;
 
-    addNewPageIfNeeded(28);
+    ensureSpace(28);
 
-    doc.setFillColor(...colors.softBg);
-    doc.setDrawColor(...colors.line);
-    doc.roundedRect(margin, y, pageWidth - margin * 2, 28, 5, 5, 'FD');
+    doc.setFillColor(...colors.deepPurple);
+    doc.roundedRect(margin, y, contentWidth, 26, 6, 6, 'F');
 
-    writeText('¡Muchas gracias por tu reserva!', pageWidth / 2, y + 11, {
-      size: 14,
-      color: colors.purpleDark,
+    writeText('¡Muchas gracias por tu reserva!', pageWidth / 2, y + 10, {
+      size: 13,
+      color: colors.white,
       font: 'bold',
       align: 'center',
     });
@@ -1004,10 +1067,10 @@ export function AdminDashboardPage() {
     writeText(
       'Nos comunicaremos contigo para confirmar los detalles de tu pedido.',
       pageWidth / 2,
-      y + 20,
+      y + 19,
       {
-        size: 10,
-        color: colors.muted,
+        size: 8.8,
+        color: colors.white,
         align: 'center',
       }
     );

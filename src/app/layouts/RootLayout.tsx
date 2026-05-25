@@ -16,6 +16,8 @@ import {
   Heart,
   ArrowRight,
   Clock,
+  CreditCard,
+  Sparkles,
 } from 'lucide-react';
 import { useCart } from '../context/CartContext';
 import { useAppStore } from '../store';
@@ -23,12 +25,27 @@ import { motion } from 'motion/react';
 import { supabase } from '../lib/supabase';
 
 const LOGO_URL = 'https://file.garden/aJyh9202yxmfpWlA/dLCHEYMEL/logo.png';
+const FOOTER_LOGO_URL =
+  'https://file.garden/aJyh9202yxmfpWlA/dLCHEYMEL/logoredondo';
+
+const CONTACT_EMAIL = 'Hola.dlecheymiel@gmail.com';
+const WHATSAPP_NUMBER = '51920206016';
 
 const SOCIAL_LINKS = [
   {
     name: 'Instagram',
-    url: 'https://instagram.com/',
+    url: 'https://www.instagram.com/dleche_y_miel/',
     icon: Instagram,
+  },
+  {
+    name: 'TikTok',
+    url: 'https://www.tiktok.com/@dleche.y.miel',
+    icon: Music2,
+  },
+  {
+    name: 'WhatsApp',
+    url: `https://wa.me/${WHATSAPP_NUMBER}`,
+    icon: MessageCircle,
   },
   {
     name: 'Facebook',
@@ -36,19 +53,32 @@ const SOCIAL_LINKS = [
     icon: Facebook,
   },
   {
-    name: 'TikTok',
-    url: 'https://tiktok.com/',
-    icon: Music2,
-  },
-  {
     name: 'YouTube',
     url: 'https://youtube.com/',
     icon: Youtube,
   },
+];
+
+const PAYMENT_METHODS = [
   {
-    name: 'WhatsApp',
-    url: 'https://wa.me/51999999999',
-    icon: MessageCircle,
+    name: 'Yape',
+    logo: 'https://file.garden/aJyh9202yxmfpWlA/logo/yape',
+    className: 'max-h-9 max-w-[58px]',
+  },
+  {
+    name: 'Plin',
+    logo: 'https://file.garden/aJyh9202yxmfpWlA/logo/plin',
+    className: 'max-h-9 max-w-[58px]',
+  },
+  {
+    name: 'Visa',
+    logo: 'https://file.garden/aJyh9202yxmfpWlA/logo/visa',
+    className: 'max-h-8 max-w-[72px]',
+  },
+  {
+    name: 'Izipay',
+    logo: 'https://file.garden/aJyh9202yxmfpWlA/logo/izipay',
+    className: 'max-h-9 max-w-[58px]',
   },
 ];
 
@@ -231,32 +261,40 @@ export function RootLayout() {
 
       <Outlet />
 
-      <footer className="relative overflow-hidden bg-[#301438] text-white mt-20">
+      <footer className="relative overflow-hidden bg-[#A885B9] text-white mt-20">
         <div className="absolute inset-0 opacity-20">
-          <div className="absolute -top-24 -left-24 w-72 h-72 bg-[#C161E4] rounded-full blur-3xl" />
-          <div className="absolute top-20 right-10 w-96 h-96 bg-[#E6C2F3] rounded-full blur-3xl" />
-          <div className="absolute bottom-0 left-1/2 w-80 h-80 bg-[#E4835D] rounded-full blur-3xl" />
+          <div className="absolute -top-24 -left-24 w-72 h-72 bg-[#E6C2F3] rounded-full blur-3xl" />
+          <div className="absolute top-20 right-10 w-96 h-96 bg-[#FDF7FF] rounded-full blur-3xl" />
+          <div className="absolute bottom-0 left-1/2 w-80 h-80 bg-[#C161E4] rounded-full blur-3xl" />
         </div>
 
         <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-16 pb-8">
           <div className="bg-white/10 backdrop-blur-md border border-white/10 rounded-3xl p-6 md:p-8 mb-12 shadow-2xl">
-            <div className="flex flex-col lg:flex-row items-center justify-between gap-6">
+            <div className="flex flex-col lg:flex-row items-center justify-between gap-8">
               <div className="text-center lg:text-left">
                 <h3 className="text-2xl md:text-3xl font-bold mb-2">
                   ¿Tienes un evento especial?
                 </h3>
 
-                <p className="text-white/80 max-w-2xl">
+                <p className="text-white/80 max-w-2xl mb-4">
                   Escríbenos por WhatsApp y te ayudamos a elegir el postre
                   perfecto para tu celebración.
                 </p>
+
+                <div className="inline-flex items-start gap-3 bg-white/10 border border-white/10 rounded-2xl px-5 py-4 text-left">
+                  <Sparkles className="h-5 w-5 text-[#E6C2F3] mt-0.5 shrink-0" />
+                  <p className="text-sm md:text-base text-white/85 max-w-2xl">
+                    También recibimos pedidos personalizados para cumpleaños,
+                    aniversarios, reuniones y eventos especiales.
+                  </p>
+                </div>
               </div>
 
               <a
-                href="https://wa.me/51999999999"
+                href={`https://wa.me/${WHATSAPP_NUMBER}`}
                 target="_blank"
                 rel="noreferrer"
-                className="inline-flex items-center gap-3 bg-[#25D366] text-white px-7 py-4 rounded-full font-bold hover:scale-105 hover:shadow-xl transition-all"
+                className="inline-flex items-center gap-3 bg-[#25D366] text-white px-7 py-4 rounded-full font-bold hover:scale-105 hover:shadow-xl transition-all shrink-0"
               >
                 <MessageCircle className="h-5 w-5" />
                 Escríbenos por WhatsApp
@@ -265,12 +303,12 @@ export function RootLayout() {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-10">
-            <div className="lg:col-span-1">
+            <div>
               <Link to="/" className="inline-flex items-center mb-5">
                 <img
-                  src={LOGO_URL}
+                  src={FOOTER_LOGO_URL}
                   alt="Leche y Miel"
-                  className="h-20 w-auto object-contain drop-shadow-lg"
+                  className="h-28 w-28 rounded-full object-cover drop-shadow-xl border-4 border-white/10"
                 />
               </Link>
 
@@ -290,6 +328,7 @@ export function RootLayout() {
                       target="_blank"
                       rel="noreferrer"
                       aria-label={social.name}
+                      title={social.name}
                       className="w-11 h-11 rounded-full bg-white/10 border border-white/10 flex items-center justify-center hover:bg-[#C161E4] hover:border-[#C161E4] hover:-translate-y-1 transition-all shadow-lg"
                     >
                       <Icon className="h-5 w-5" />
@@ -345,32 +384,26 @@ export function RootLayout() {
 
               <div className="space-y-4">
                 <a
-                  href="tel:+51999999999"
+                  href={`tel:+${WHATSAPP_NUMBER}`}
                   className="flex items-start gap-3 text-white/80 hover:text-[#E6C2F3] transition-colors"
                 >
                   <Phone className="h-5 w-5 mt-0.5 text-[#E6C2F3]" />
-                  <span>+51 999 999 999</span>
+                  <span>+51 920 206 016</span>
                 </a>
 
                 <a
-                  href="mailto:info@lecheymiel.com"
+                  href={`mailto:${CONTACT_EMAIL}`}
                   className="flex items-start gap-3 text-white/80 hover:text-[#E6C2F3] transition-colors"
                 >
                   <Mail className="h-5 w-5 mt-0.5 text-[#E6C2F3]" />
-                  <span>info@lecheymiel.com</span>
+                  <span>{CONTACT_EMAIL}</span>
                 </a>
 
                 <div className="flex items-start gap-3 text-white/80">
                   <MapPin className="h-5 w-5 mt-0.5 text-[#E6C2F3]" />
                   <span>Lima, Perú</span>
                 </div>
-              </div>
-            </div>
 
-            <div>
-              <h4 className="text-xl font-bold mb-5">Horario de atención</h4>
-
-              <div className="space-y-4">
                 <div className="flex items-start gap-3 text-white/80">
                   <Clock className="h-5 w-5 mt-0.5 text-[#E6C2F3]" />
                   <div>
@@ -378,13 +411,38 @@ export function RootLayout() {
                     <p>9:00 a.m. - 8:00 p.m.</p>
                   </div>
                 </div>
+              </div>
+            </div>
 
-                <div className="bg-white/10 border border-white/10 rounded-2xl p-4">
-                  <p className="text-sm text-white/80">
-                    También recibimos pedidos personalizados para cumpleaños,
-                    aniversarios, reuniones y eventos especiales.
-                  </p>
-                </div>
+            <div>
+              <h4 className="text-xl font-bold mb-5 flex items-center gap-2">
+                <CreditCard className="h-5 w-5 text-[#E6C2F3]" />
+                Métodos de pago
+              </h4>
+
+              <p className="text-white/80 mb-6">
+                Aceptamos pagos rápidos, seguros y tarjetas.
+              </p>
+
+              <div className="grid grid-cols-4 gap-3 items-center max-w-[280px]">
+                {PAYMENT_METHODS.map((method) => (
+                  <motion.div
+                    key={method.name}
+                    whileHover={{ y: -3, scale: 1.08 }}
+                    whileTap={{ scale: 0.95 }}
+                    className="h-12 flex items-center justify-center"
+                    title={method.name}
+                  >
+                    <img
+                      src={method.logo}
+                      alt={method.name}
+                      className={`${method.className} w-auto object-contain drop-shadow-lg`}
+                      onError={(event) => {
+                        event.currentTarget.style.display = 'none';
+                      }}
+                    />
+                  </motion.div>
+                ))}
               </div>
             </div>
           </div>
