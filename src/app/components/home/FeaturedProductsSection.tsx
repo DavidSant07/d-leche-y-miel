@@ -140,4 +140,4 @@ export function FeaturedProductsSection() {
       </div>
     </section>
   );
-}
+} 
