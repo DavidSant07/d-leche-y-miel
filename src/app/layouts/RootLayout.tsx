@@ -1,8 +1,10 @@
+import { useEffect, useState } from 'react';
 import { Outlet, Link, useLocation, useNavigate } from 'react-router';
 import { ShoppingCart, User, LogOut, UserCircle } from 'lucide-react';
 import { useCart } from '../context/CartContext';
 import { useAppStore } from '../store';
 import { motion } from 'motion/react';
+import { supabase } from '../lib/supabase';
 
 const LOGO_URL = 'https://file.garden/aJyh9202yxmfpWlA/dLCHEYMEL/logo.png';
 
@@ -12,6 +14,8 @@ export function RootLayout() {
   const navigate = useNavigate();
   const { user, logout } = useAppStore();
 
+  const [avatarUrl, setAvatarUrl] = useState('');
+
   const cartItemsCount = cart.reduce((sum, item) => sum + item.cartQuantity, 0);
 
   const navLinks = [
@@ -19,9 +23,50 @@ export function RootLayout() {
     { path: '/productos', label: 'Productos' },
   ];
 
-  const handleLogout = () => {
-    logout();
+  useEffect(() => {
+    const loadAvatar = async () => {
+      if (!user) {
+        setAvatarUrl('');
+        return;
+      }
+
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('avatar_url')
+        .eq('id', user.id)
+        .maybeSingle();
+
+      if (error) {
+        setAvatarUrl('');
+        return;
+      }
+
+      setAvatarUrl(data?.avatar_url || '');
+    };
+
+    void loadAvatar();
+  }, [user?.id, location.pathname]);
+
+  const handleLogout = async () => {
+    await logout();
+    setAvatarUrl('');
     navigate('/');
+  };
+
+  const UserAvatar = ({ size = 'small' }: { size?: 'small' | 'large' }) => {
+    const sizeClass = size === 'large' ? 'h-9 w-9' : 'h-6 w-6';
+
+    if (avatarUrl) {
+      return (
+        <img
+          src={avatarUrl}
+          alt={user?.name || 'Usuario'}
+          className={`${sizeClass} rounded-full object-cover border-2 border-[#E6C2F3] shadow-sm`}
+        />
+      );
+    }
+
+    return <UserCircle className={`${sizeClass} text-[#623B6B]`} />;
   };
 
   return (
@@ -76,18 +121,20 @@ export function RootLayout() {
                   {user.role === 'admin' ? (
                     <Link
                       to="/admin"
-                      className="text-sm font-medium text-[#623B6B] hover:text-[#C161E4] flex items-center gap-1"
+                      className="text-sm font-medium text-[#623B6B] hover:text-[#C161E4] flex items-center gap-2"
                     >
-                      <UserCircle className="h-5 w-5" />
-                      Admin
+                      <UserAvatar />
+                      <span>Admin</span>
                     </Link>
                   ) : (
                     <Link
                       to="/perfil"
-                      className="text-sm font-medium text-[#623B6B] hover:text-[#C161E4] flex items-center gap-1 cursor-pointer"
+                      className="text-sm font-medium text-[#623B6B] hover:text-[#C161E4] flex items-center gap-2 cursor-pointer"
                     >
-                      <UserCircle className="h-5 w-5" />
-                      {user.name}
+                      <UserAvatar />
+                      <span className="max-w-[140px] truncate">
+                        {user.name}
+                      </span>
                     </Link>
                   )}
 
