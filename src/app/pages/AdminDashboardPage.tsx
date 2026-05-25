@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { FormEvent } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useAppStore } from '../store';
@@ -19,9 +19,13 @@ import {
   Save,
   AlertTriangle,
   Star,
+  MessageSquare,
+  Clock,
+  UserCircle,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { jsPDF } from 'jspdf';
+import { supabase } from '../lib/supabase';
 
 type EditingCategory = {
   old: string;
@@ -33,6 +37,18 @@ type EditingProduct = any | null;
 type AllergyItem = {
   key: string;
   label: string;
+};
+
+type ReviewStatus = 'pending' | 'approved' | 'rejected';
+
+type Review = {
+  id: string;
+  customer_name: string;
+  comment: string;
+  rating: number;
+  photo_url: string | null;
+  status: ReviewStatus;
+  created_at: string;
 };
 
 const LOGO_URL =
@@ -159,6 +175,20 @@ const getReservationNumber = (res: any) => {
   );
 };
 
+const formatReviewDate = (date: string) => {
+  const parsedDate = new Date(date);
+
+  if (Number.isNaN(parsedDate.getTime())) {
+    return '-';
+  }
+
+  return parsedDate.toLocaleDateString('es-PE', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+  });
+};
+
 export function AdminDashboardPage() {
   const {
     user,
@@ -175,7 +205,7 @@ export function AdminDashboardPage() {
   } = useAppStore();
 
   const [activeTab, setActiveTab] = useState<
-    'reservations' | 'products' | 'categories'
+    'reservations' | 'products' | 'categories' | 'reviews'
   >('reservations');
 
   const [editingProduct, setEditingProduct] = useState<EditingProduct>(null);
@@ -197,15 +227,59 @@ export function AdminDashboardPage() {
   const [productToDelete, setProductToDelete] = useState<any | null>(null);
   const [categoryToDelete, setCategoryToDelete] = useState<string | null>(null);
 
+  const [reviews, setReviews] = useState<Review[]>([]);
+  const [isLoadingReviews, setIsLoadingReviews] = useState(false);
+
   const [actionModal, setActionModal] = useState<{
     title: string;
     message: string;
     type: 'success' | 'danger' | 'warning';
   } | null>(null);
 
+  const loadReviews = async () => {
+    if (!user || user.role !== 'admin') {
+      return;
+    }
+
+    setIsLoadingReviews(true);
+
+    const { data, error } = await supabase
+      .from('reviews')
+      .select('id, customer_name, comment, rating, photo_url, status, created_at')
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.error('Error cargando comentarios:', error.message);
+      toast.error('No se pudieron cargar los comentarios');
+      setIsLoadingReviews(false);
+      return;
+    }
+
+    setReviews((data || []) as Review[]);
+    setIsLoadingReviews(false);
+  };
+
+  useEffect(() => {
+    if (user?.role === 'admin') {
+      void loadReviews();
+    }
+  }, [user?.role]);
+
   if (!user || user.role !== 'admin') {
     return <Navigate to="/login" replace />;
   }
+
+  const pendingReviewsCount = reviews.filter(
+    (review) => review.status === 'pending'
+  ).length;
+
+  const approvedReviewsCount = reviews.filter(
+    (review) => review.status === 'approved'
+  ).length;
+
+  const rejectedReviewsCount = reviews.filter(
+    (review) => review.status === 'rejected'
+  ).length;
 
   const openProductEditor = (product: any) => {
     const productAllergens = product?.allergens || {};
@@ -461,6 +535,57 @@ export function AdminDashboardPage() {
     closeProductEditor();
   };
 
+  const handleUpdateReviewStatus = async (
+    reviewId: string,
+    status: ReviewStatus
+  ) => {
+    const { error } = await supabase
+      .from('reviews')
+      .update({ status })
+      .eq('id', reviewId);
+
+    if (error) {
+      toast.error(error.message || 'No se pudo actualizar el comentario');
+      return;
+    }
+
+    await loadReviews();
+
+    if (status === 'approved') {
+      setActionModal({
+        title: 'Comentario aprobado',
+        message:
+          'El comentario ahora aparecerá en la sección de clientes satisfechos.',
+        type: 'success',
+      });
+    }
+
+    if (status === 'rejected') {
+      setActionModal({
+        title: 'Comentario rechazado',
+        message: 'El comentario no aparecerá públicamente.',
+        type: 'warning',
+      });
+    }
+  };
+
+  const handleDeleteReview = async (reviewId: string) => {
+    const { error } = await supabase.from('reviews').delete().eq('id', reviewId);
+
+    if (error) {
+      toast.error(error.message || 'No se pudo eliminar el comentario');
+      return;
+    }
+
+    await loadReviews();
+
+    setActionModal({
+      title: 'Comentario eliminado',
+      message: 'El comentario fue eliminado correctamente.',
+      type: 'danger',
+    });
+  };
+
   const downloadReceipt = async (res: Reservation) => {
     const doc = new jsPDF('p', 'mm', 'a4');
 
@@ -581,11 +706,16 @@ export function AdminDashboardPage() {
           }
         );
 
-        writeText(`Página ${page} de ${pageCount}`, pageWidth - margin, pageHeight - 10, {
-          size: 9,
-          color: colors.muted,
-          align: 'right',
-        });
+        writeText(
+          `Página ${page} de ${pageCount}`,
+          pageWidth - margin,
+          pageHeight - 10,
+          {
+            size: 9,
+            color: colors.muted,
+            align: 'right',
+          }
+        );
       }
     };
 
@@ -1130,6 +1260,47 @@ export function AdminDashboardPage() {
     );
   };
 
+  const renderReviewStars = (rating: number) => {
+    return (
+      <div className="flex gap-1">
+        {[1, 2, 3, 4, 5].map((starValue) => (
+          <Star
+            key={starValue}
+            className={`h-5 w-5 ${
+              starValue <= rating
+                ? 'fill-[#C161E4] text-[#C161E4]'
+                : 'text-[#E6C2F3]'
+            }`}
+          />
+        ))}
+      </div>
+    );
+  };
+
+  const renderReviewStatusBadge = (status: ReviewStatus) => {
+    if (status === 'approved') {
+      return (
+        <span className="bg-green-100 text-green-700 text-xs font-bold px-3 py-1 rounded-full">
+          Aprobado
+        </span>
+      );
+    }
+
+    if (status === 'rejected') {
+      return (
+        <span className="bg-red-100 text-red-700 text-xs font-bold px-3 py-1 rounded-full">
+          Rechazado
+        </span>
+      );
+    }
+
+    return (
+      <span className="bg-yellow-100 text-yellow-700 text-xs font-bold px-3 py-1 rounded-full">
+        Pendiente
+      </span>
+    );
+  };
+
   const renderActionIcon = () => {
     if (actionModal?.type === 'success') {
       return <Check className="h-8 w-8 text-green-600" />;
@@ -1209,6 +1380,27 @@ export function AdminDashboardPage() {
             >
               <ListTree className="h-5 w-5" />
               Categorías
+            </button>
+
+            <button
+              onClick={() => {
+                setActiveTab('reviews');
+                void loadReviews();
+              }}
+              className={`relative flex items-center gap-2 px-6 py-2 rounded-full transition-all ${
+                activeTab === 'reviews'
+                  ? 'bg-[#E6C2F3] text-[#301438] font-bold shadow-sm'
+                  : 'text-[#623B6B] hover:bg-gray-50'
+              }`}
+            >
+              <MessageSquare className="h-5 w-5" />
+              Comentarios
+
+              {pendingReviewsCount > 0 && (
+                <span className="absolute -top-2 -right-1 bg-red-500 text-white text-[10px] font-bold rounded-full min-w-5 h-5 px-1 flex items-center justify-center">
+                  {pendingReviewsCount}
+                </span>
+              )}
             </button>
           </div>
         </div>
@@ -1629,6 +1821,152 @@ export function AdminDashboardPage() {
           </div>
         )}
 
+        {activeTab === 'reviews' && (
+          <div className="bg-white rounded-3xl p-6 md:p-8 shadow-xl border border-[#E6C2F3]/20">
+            <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 mb-8">
+              <div>
+                <h2 className="text-2xl font-bold text-[#301438]">
+                  Comentarios de Clientes
+                </h2>
+                <p className="text-[#623B6B] mt-1">
+                  Aprueba solo los comentarios que quieres mostrar en la página.
+                </p>
+              </div>
+
+              <button
+                onClick={() => void loadReviews()}
+                className="bg-[#E6C2F3] text-[#301438] px-5 py-3 rounded-xl font-bold hover:bg-[#C161E4] hover:text-white transition-all"
+              >
+                Actualizar comentarios
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+              <div className="bg-yellow-50 border border-yellow-100 rounded-2xl p-5">
+                <p className="text-sm font-bold text-yellow-700">Pendientes</p>
+                <p className="text-3xl font-bold text-yellow-700 mt-2">
+                  {pendingReviewsCount}
+                </p>
+              </div>
+
+              <div className="bg-green-50 border border-green-100 rounded-2xl p-5">
+                <p className="text-sm font-bold text-green-700">Aprobados</p>
+                <p className="text-3xl font-bold text-green-700 mt-2">
+                  {approvedReviewsCount}
+                </p>
+              </div>
+
+              <div className="bg-red-50 border border-red-100 rounded-2xl p-5">
+                <p className="text-sm font-bold text-red-700">Rechazados</p>
+                <p className="text-3xl font-bold text-red-700 mt-2">
+                  {rejectedReviewsCount}
+                </p>
+              </div>
+            </div>
+
+            {isLoadingReviews ? (
+              <div className="text-center py-12 text-[#623B6B]">
+                Cargando comentarios...
+              </div>
+            ) : reviews.length === 0 ? (
+              <div className="text-center py-12 border-2 border-dashed border-[#E6C2F3]/40 rounded-2xl">
+                <MessageSquare className="h-12 w-12 text-[#C161E4] mx-auto mb-4" />
+                <p className="text-[#623B6B]">
+                  Todavía no hay comentarios enviados por clientes.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {reviews.map((review) => (
+                  <div
+                    key={review.id}
+                    className="border-2 border-gray-100 rounded-2xl p-5 hover:border-[#E6C2F3]/50 transition-colors"
+                  >
+                    <div className="flex flex-col lg:flex-row gap-5">
+                      <div className="flex items-start gap-4 flex-1">
+                        <div className="w-16 h-16 rounded-2xl overflow-hidden bg-[#FDF7FF] border-2 border-[#E6C2F3]/40 shrink-0">
+                          {review.photo_url ? (
+                            <img
+                              src={review.photo_url}
+                              alt={review.customer_name}
+                              className="w-full h-full object-cover"
+                            />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center">
+                              <UserCircle className="h-10 w-10 text-[#C161E4]" />
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="flex-1">
+                          <div className="flex flex-wrap items-center gap-3 mb-2">
+                            <h3 className="font-bold text-[#301438] text-lg">
+                              {review.customer_name}
+                            </h3>
+
+                            {renderReviewStatusBadge(review.status)}
+                          </div>
+
+                          {renderReviewStars(review.rating)}
+
+                          <p className="text-[#623B6B] mt-3 leading-relaxed">
+                            “{review.comment}”
+                          </p>
+
+                          <div className="flex items-center gap-2 text-xs text-[#623B6B]/70 mt-3">
+                            <Clock className="h-4 w-4" />
+                            {formatReviewDate(review.created_at)}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="flex flex-col sm:flex-row lg:flex-col gap-2 lg:w-44">
+                        {review.status !== 'approved' && (
+                          <button
+                            onClick={() =>
+                              void handleUpdateReviewStatus(
+                                review.id,
+                                'approved'
+                              )
+                            }
+                            className="bg-green-100 text-green-700 px-4 py-2 rounded-xl font-bold hover:bg-green-600 hover:text-white transition-all flex items-center justify-center gap-2"
+                          >
+                            <Check className="h-4 w-4" />
+                            Aprobar
+                          </button>
+                        )}
+
+                        {review.status !== 'rejected' && (
+                          <button
+                            onClick={() =>
+                              void handleUpdateReviewStatus(
+                                review.id,
+                                'rejected'
+                              )
+                            }
+                            className="bg-yellow-100 text-yellow-700 px-4 py-2 rounded-xl font-bold hover:bg-yellow-500 hover:text-white transition-all flex items-center justify-center gap-2"
+                          >
+                            <X className="h-4 w-4" />
+                            Rechazar
+                          </button>
+                        )}
+
+                        <button
+                          onClick={() => void handleDeleteReview(review.id)}
+                          className="bg-red-50 text-red-600 px-4 py-2 rounded-xl font-bold hover:bg-red-600 hover:text-white transition-all flex items-center justify-center gap-2"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                          Eliminar
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
         {editingProduct && (
           <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-[60]">
             <motion.div
@@ -1987,7 +2325,9 @@ export function AdminDashboardPage() {
               animate={{ opacity: 1, scale: 1, y: 0 }}
               className="bg-white rounded-3xl shadow-2xl max-w-md w-full overflow-hidden border border-[#E6C2F3]/30"
             >
-              <div className={`px-8 py-8 text-center ${renderActionBackground()}`}>
+              <div
+                className={`px-8 py-8 text-center ${renderActionBackground()}`}
+              >
                 <div
                   className={`mx-auto w-16 h-16 rounded-full flex items-center justify-center mb-4 ${renderActionIconBackground()}`}
                 >
@@ -1998,9 +2338,7 @@ export function AdminDashboardPage() {
                   {actionModal.title}
                 </h3>
 
-                <p className="text-[#623B6B] mt-2">
-                  {actionModal.message}
-                </p>
+                <p className="text-[#623B6B] mt-2">{actionModal.message}</p>
               </div>
 
               <div className="px-8 py-6">
