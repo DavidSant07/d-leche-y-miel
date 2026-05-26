@@ -189,6 +189,85 @@ const formatReviewDate = (date: string) => {
   });
 };
 
+type AdminOrderStatus = 'pendiente' | 'confirmado' | 'entregado' | 'cancelado';
+
+const normalizeAdminReservationStatus = (status: unknown): AdminOrderStatus => {
+  const value = String(status || '').toLowerCase();
+
+  if (value === 'confirmed' || value === 'confirmado') return 'confirmado';
+  if (value === 'delivered' || value === 'entregado') return 'entregado';
+  if (value === 'cancelled' || value === 'canceled' || value === 'cancelado') {
+    return 'cancelado';
+  }
+
+  return 'pendiente';
+};
+
+const getAdminReservationStatusLabel = (status: AdminOrderStatus) => {
+  if (status === 'confirmado') return 'Confirmado';
+  if (status === 'entregado') return 'Entregado';
+  if (status === 'cancelado') return 'Cancelado';
+  return 'Pendiente';
+};
+
+const getAdminReservationStatusClasses = (status: AdminOrderStatus) => {
+  if (status === 'confirmado') {
+    return 'bg-purple-100 text-purple-700';
+  }
+
+  if (status === 'entregado') {
+    return 'bg-green-100 text-green-700';
+  }
+
+  if (status === 'cancelado') {
+    return 'bg-red-100 text-red-700';
+  }
+
+  return 'bg-yellow-100 text-yellow-700';
+};
+
+const getAdminReservationStatusMessage = (status: AdminOrderStatus) => {
+  if (status === 'confirmado') {
+    return {
+      title: 'Pedido confirmado',
+      message:
+        'La reserva fue marcada como confirmada. El cliente la verá como pedido por entregar.',
+      type: 'success' as const,
+    };
+  }
+
+  if (status === 'entregado') {
+    return {
+      title: 'Pedido entregado',
+      message:
+        'La reserva fue marcada como entregada. El cliente la verá en pedidos entregados.',
+      type: 'success' as const,
+    };
+  }
+
+  if (status === 'cancelado') {
+    return {
+      title: 'Pedido cancelado',
+      message:
+        'La reserva fue marcada como cancelada. El cliente la verá en pedidos cancelados.',
+      type: 'warning' as const,
+    };
+  }
+
+  return {
+    title: 'Pedido pendiente',
+    message: 'La reserva fue marcada como pendiente.',
+    type: 'warning' as const,
+  };
+};
+
+const getLocalReservationStatus = (status: AdminOrderStatus) => {
+  if (status === 'confirmado') return 'confirmed';
+  if (status === 'entregado') return 'delivered';
+  if (status === 'cancelado') return 'cancelled';
+  return 'pending';
+};
+
 export function AdminDashboardPage() {
   const {
     user,
@@ -583,6 +662,72 @@ export function AdminDashboardPage() {
       title: 'Comentario eliminado',
       message: 'El comentario fue eliminado correctamente.',
       type: 'danger',
+    });
+  };
+
+
+  const handleUpdateOrderStatus = async (
+    res: Reservation,
+    status: AdminOrderStatus
+  ) => {
+    const reservationNumber = getReservationNumber(res);
+    const possibleOrderId = String(
+      (res as any).order_id || (res as any).orderId || res.id || ''
+    );
+
+    let updatedOrderId: string | null = null;
+    let updateErrorMessage = '';
+
+    if (possibleOrderId) {
+      const { data, error } = await supabase
+        .from('orders')
+        .update({ status })
+        .eq('id', possibleOrderId)
+        .select('id')
+        .maybeSingle();
+
+      if (data?.id) {
+        updatedOrderId = data.id;
+      }
+
+      if (error) {
+        updateErrorMessage = error.message;
+      }
+    }
+
+    if (!updatedOrderId && reservationNumber) {
+      const { data, error } = await supabase
+        .from('orders')
+        .update({ status })
+        .eq('reservation_number', reservationNumber)
+        .select('id')
+        .maybeSingle();
+
+      if (data?.id) {
+        updatedOrderId = data.id;
+      }
+
+      if (error) {
+        updateErrorMessage = error.message;
+      }
+    }
+
+    if (!updatedOrderId) {
+      toast.error(
+        updateErrorMessage ||
+          'No se pudo actualizar el estado del pedido en Supabase'
+      );
+      return;
+    }
+
+    updateReservationStatus(res.id, getLocalReservationStatus(status) as any);
+
+    const modal = getAdminReservationStatusMessage(status);
+
+    setActionModal({
+      title: modal.title,
+      message: modal.message,
+      type: modal.type,
     });
   };
 
@@ -1508,15 +1653,13 @@ export function AdminDashboardPage() {
 
                       <div className="flex items-center gap-4">
                         <span
-                          className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                            res.status === 'confirmed'
-                              ? 'bg-green-100 text-green-700'
-                              : 'bg-yellow-100 text-yellow-700'
-                          }`}
+                          className={`px-3 py-1 rounded-full text-xs font-semibold ${getAdminReservationStatusClasses(
+                            normalizeAdminReservationStatus((res as any).status)
+                          )}`}
                         >
-                          {res.status === 'confirmed'
-                            ? 'Confirmado'
-                            : 'Pendiente'}
+                          {getAdminReservationStatusLabel(
+                            normalizeAdminReservationStatus((res as any).status)
+                          )}
                         </span>
 
                         <p className="font-bold text-[#C161E4] w-24 text-right">
@@ -1590,26 +1733,77 @@ export function AdminDashboardPage() {
                               </div>
 
                               <div className="mt-6 flex flex-wrap gap-3">
-                                {res.status === 'pending' && (
+                                {normalizeAdminReservationStatus(
+                                  (res as any).status
+                                ) === 'pendiente' && (
                                   <button
                                     onClick={(e) => {
                                       e.stopPropagation();
-                                      updateReservationStatus(
-                                        res.id,
-                                        'confirmed'
+                                      void handleUpdateOrderStatus(
+                                        res,
+                                        'confirmado'
                                       );
-
-                                      setActionModal({
-                                        title: 'Pedido confirmado',
-                                        message:
-                                          'La reserva fue marcada como confirmada correctamente.',
-                                        type: 'success',
-                                      });
                                     }}
                                     className="flex items-center gap-2 bg-[#E6C2F3] text-[#301438] px-4 py-2 rounded-xl font-semibold hover:bg-[#C161E4] hover:text-white transition-colors"
                                   >
                                     <Check className="h-4 w-4" />
                                     Confirmar Pedido
+                                  </button>
+                                )}
+
+                                {normalizeAdminReservationStatus(
+                                  (res as any).status
+                                ) === 'confirmado' && (
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      void handleUpdateOrderStatus(
+                                        res,
+                                        'entregado'
+                                      );
+                                    }}
+                                    className="flex items-center gap-2 bg-green-100 text-green-700 px-4 py-2 rounded-xl font-semibold hover:bg-green-600 hover:text-white transition-colors"
+                                  >
+                                    <Package className="h-4 w-4" />
+                                    Marcar entregado
+                                  </button>
+                                )}
+
+                                {!['entregado', 'cancelado'].includes(
+                                  normalizeAdminReservationStatus(
+                                    (res as any).status
+                                  )
+                                ) && (
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      void handleUpdateOrderStatus(
+                                        res,
+                                        'cancelado'
+                                      );
+                                    }}
+                                    className="flex items-center gap-2 bg-red-50 text-red-600 px-4 py-2 rounded-xl font-semibold hover:bg-red-600 hover:text-white transition-colors"
+                                  >
+                                    <X className="h-4 w-4" />
+                                    Cancelar pedido
+                                  </button>
+                                )}
+
+                                {normalizeAdminReservationStatus(
+                                  (res as any).status
+                                ) === 'cancelado' && (
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      void handleUpdateOrderStatus(
+                                        res,
+                                        'pendiente'
+                                      );
+                                    }}
+                                    className="flex items-center gap-2 bg-yellow-100 text-yellow-700 px-4 py-2 rounded-xl font-semibold hover:bg-yellow-500 hover:text-white transition-colors"
+                                  >
+                                    <Clock className="h-4 w-4" />
+                                    Reabrir pedido
                                   </button>
                                 )}
 
